@@ -33,10 +33,10 @@ def get_base_path() -> Path:
 def set_base_path(path: Path | str | None) -> None:
     """
     Set a custom base path for the AURA archive.
-    
+
     Useful for testing or when the archive is mounted at a different location.
     Pass None to reset to default.
-    
+
     Parameters
     ----------
     path : Path, str, or None

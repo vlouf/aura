@@ -21,11 +21,11 @@ from aura.config import radar_site_list_path
 class RadarInfo:
     """
     Information about a radar site.
-    
+
     Note that radar sites can have multiple configurations over time
     (e.g., upgrades from C-band to S-band, or addition of dual-polarization).
     Each configuration is represented as a separate RadarInfo instance.
-    
+
     Attributes
     ----------
     id : int
@@ -67,7 +67,7 @@ class RadarInfo:
     notes : str
         Additional notes.
     """
-    
+
     id: int
     id_long: str
     wigos: str
@@ -87,36 +87,36 @@ class RadarInfo:
     beamwidth: float
     state: str
     notes: str
-    
+
     @property
     def name(self) -> str:
         """Alias for location."""
         return self.location
-    
+
     @property
     def is_current(self) -> bool:
         """Whether this configuration is currently active."""
         return self.end_date is None
-    
+
     @property
     def is_sband(self) -> bool:
         """Whether this is an S-band radar."""
         return self.band.upper() == "S"
-    
+
     @property
     def is_cband(self) -> bool:
         """Whether this is a C-band radar."""
         return self.band.upper() == "C"
-    
+
     def active_at(self, dt: date | datetime) -> bool:
         """
         Check if this radar configuration was active at a given date.
-        
+
         Parameters
         ----------
         dt : date or datetime
             The date to check.
-            
+
         Returns
         -------
         bool
@@ -124,18 +124,15 @@ class RadarInfo:
         """
         if isinstance(dt, datetime):
             dt = dt.date()
-        
+
         if self.start_date and dt < self.start_date:
             return False
         if self.end_date and dt > self.end_date:
             return False
         return True
-    
+
     def __repr__(self) -> str:
-        return (
-            f"RadarInfo(id={self.id}, name='{self.location}', "
-            f"type='{self.radar_type}', band='{self.band}')"
-        )
+        return f"RadarInfo(id={self.id}, name='{self.location}', " f"type='{self.radar_type}', band='{self.band}')"
 
 
 def _parse_date(date_str: str) -> Optional[date]:
@@ -165,17 +162,16 @@ def _parse_float(value: str, default: float = 0.0) -> float:
 def _load_radar_site_list() -> List[RadarInfo]:
     """
     Load and parse the radar site list CSV.
-    
+
     Results are cached after first load.
     """
     csv_path = radar_site_list_path()
-    
+
     if not csv_path.exists():
         raise FileNotFoundError(
-            f"Radar site list not found at {csv_path}. "
-            "Make sure you have access to the rq0 project on NCI."
+            f"Radar site list not found at {csv_path}. " "Make sure you have access to the rq0 project on NCI."
         )
-    
+
     radars = []
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -206,9 +202,10 @@ def _load_radar_site_list() -> List[RadarInfo]:
             except (KeyError, ValueError) as e:
                 # Skip malformed rows but log for debugging
                 import warnings
+
                 warnings.warn(f"Skipping malformed row in radar site list: {e}")
                 continue
-    
+
     return radars
 
 
@@ -220,7 +217,7 @@ def list_radars(
 ) -> List[RadarInfo]:
     """
     List all radars in the archive.
-    
+
     Parameters
     ----------
     current_only : bool
@@ -231,22 +228,22 @@ def list_radars(
         Filter by Australian state (e.g., "VIC", "NSW").
     dual_pol_only : bool
         If True, only return dual-polarization radars.
-        
+
     Returns
     -------
     List[RadarInfo]
         List of radar information objects.
-        
+
     Examples
     --------
     >>> # Get all current S-band radars
     >>> sband = aura.list_radars(current_only=True, band="S")
-    >>> 
+    >>>
     >>> # Get all dual-pol radars in Victoria
     >>> vic_dp = aura.list_radars(state="VIC", dual_pol_only=True)
     """
     radars = _load_radar_site_list()
-    
+
     if current_only:
         radars = [r for r in radars if r.is_current]
     if band:
@@ -255,7 +252,7 @@ def list_radars(
         radars = [r for r in radars if r.state.upper() == state.upper()]
     if dual_pol_only:
         radars = [r for r in radars if r.dual_pol]
-    
+
     return radars
 
 
@@ -265,11 +262,11 @@ def get_radar(
 ) -> RadarInfo:
     """
     Get information about a specific radar.
-    
+
     If a radar has multiple configurations (e.g., upgrades), this returns
     the configuration that was active at the specified date, or the most
     recent configuration if no date is specified.
-    
+
     Parameters
     ----------
     radar_id : int or str
@@ -277,23 +274,23 @@ def get_radar(
     at_date : date or datetime, optional
         Return the configuration active at this date.
         If None, returns the most recent (current) configuration.
-        
+
     Returns
     -------
     RadarInfo
         Information about the radar.
-        
+
     Raises
     ------
     ValueError
         If no radar with the given ID exists.
-        
+
     Examples
     --------
     >>> radar = aura.get_radar(2)
     >>> print(f"{radar.location}: {radar.radar_type} ({radar.band}-band)")
     Melbourne: Meteor1500S (S-band)
-    >>> 
+    >>>
     >>> # Get historical configuration
     >>> old_radar = aura.get_radar(2, at_date=date(2010, 1, 1))
     >>> print(old_radar.radar_type)
@@ -301,13 +298,13 @@ def get_radar(
     """
     rid = int(radar_id)
     radars = _load_radar_site_list()
-    
+
     # Filter to this radar ID
     matches = [r for r in radars if r.id == rid]
-    
+
     if not matches:
         raise ValueError(f"No radar found with ID {rid}")
-    
+
     if at_date is not None:
         # Find configuration active at the given date
         active = [r for r in matches if r.active_at(at_date)]
@@ -315,16 +312,16 @@ def get_radar(
             return active[0]  # Should be only one
         # Fall back to nearest configuration
         import warnings
+
         warnings.warn(
-            f"No active configuration found for radar {rid} at {at_date}. "
-            "Returning most recent configuration."
+            f"No active configuration found for radar {rid} at {at_date}. " "Returning most recent configuration."
         )
-    
+
     # Return the current (or most recent) configuration
     current = [r for r in matches if r.is_current]
     if current:
         return current[0]
-    
+
     # If no current config, return the one with the latest start date
     return max(matches, key=lambda r: r.start_date or date.min)
 
@@ -332,7 +329,7 @@ def get_radar(
 def get_radar_ids() -> List[int]:
     """
     Get a list of all unique radar IDs in the archive.
-    
+
     Returns
     -------
     List[int]
