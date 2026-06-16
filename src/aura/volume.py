@@ -124,7 +124,7 @@ class LazyVolume:
             Radar sweeps as fully materialised (non-lazy) xarray Datasets.
         """
         try:
-            from pyodim import read_odim_slice_h5
+            from pyodim.pyodim import read_odim_slice_h5
         except ImportError:
             raise ImportError("pyodim is required to read ODIM HDF5 files. " "Install it with: pip install pyodim")
 
