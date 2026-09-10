@@ -299,7 +299,7 @@ def read_vol(
         If True, read the nearest volume to the specified time.
         If False, raise an error if no exact match exists.
     **read_kwargs
-        Additional arguments passed to pyodim.read_odim().
+        Additional arguments passed to Volume.read() (e.g. sweeps, include_fields).
 
     Returns
     -------

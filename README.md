@@ -26,7 +26,7 @@ pip install -e ".[dev]"
 
 - Python >= 3.9
 - Access to NCI Gadi and the `rq0` project
-- pyodim (for reading ODIM HDF5 files)
+- pyodim >= 0.7 (for reading ODIM HDF5 files)
 
 ## Quick Start
 
@@ -106,7 +106,7 @@ A lazy reference to a radar volume file inside a zip archive.
 - `timestamp`: UTC timestamp of the scan
 
 **Methods:**
-- `read(**kwargs)` → `xr.Dataset`: Read the volume using pyodim
+- `read(sweeps=None, **kwargs)` → `List[xr.Dataset]`: Read the volume using pyodim (eager)
 - `read_h5py()` → `h5py.File`: Read raw HDF5 (for advanced use)
 - `extract_to(directory)` → `Path`: Extract file to disk
 
@@ -120,7 +120,7 @@ print(vol.timestamp)  # 2025-10-16 12:28:45
 data = vol.read()
 
 # Read specific sweep
-sweep0 = vol.read(nslice=0)
+sweep0 = vol.read(sweeps=0)[0]
 
 # Extract to disk for external tools
 path = vol.extract_to("/scratch/myproject/tmp")

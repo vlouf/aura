@@ -8,6 +8,7 @@ access to radar volumes without extracting them from zip archives until needed.
 from __future__ import annotations
 
 import io
+import warnings
 import zipfile
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -102,62 +103,46 @@ class LazyVolume:
             timestamp=timestamp,
         )
 
-    def read(self, **kwargs) -> List[xr.Dataset]:
+    def read(self, sweeps: int | list[int] | None = None, **kwargs) -> List[xr.Dataset]:
         """
         Read the volume data using pyodim.
 
-        Reads directly from the zip into an in-memory h5py file,
-        bypassing the temp-file-on-disk approach entirely.
+        Reads directly from the zip into an in-memory buffer and hands it to
+        ``pyodim.read_odim``; no temp file ever touches disk.
 
         Parameters
         ----------
+        sweeps : int or list of int, optional
+            Sweep index (or indices) to read, in elevation order. All sweeps if omitted.
         **kwargs
-            Additional arguments passed to pyodim.read_odim_slice_h5().
-            Common options include:
-            - nslice: int - Specific sweep to read (default reads all)
-            - include_fields: List[str] - Fields to include
-            - exclude_fields: List[str] - Fields to exclude
+            Additional options passed to ``pyodim.read_odim`` /
+            ``pyodim.read_sweep``, e.g. ``include_fields``, ``exclude_fields``,
+            ``mask_undetect``, ``georef``.
 
         Returns
         -------
         List[xr.Dataset]
-            Radar sweeps as fully materialised (non-lazy) xarray Datasets.
+            Radar sweeps ordered by elevation, fully materialised (pyodim >= 0.7
+            is eager by default).
         """
         try:
-            from pyodim.pyodim import read_odim_slice_h5
+            from pyodim import read_odim
         except ImportError:
-            raise ImportError("pyodim is required to read ODIM HDF5 files. " "Install it with: pip install pyodim")
+            raise ImportError("pyodim>=0.7 is required to read ODIM HDF5 files. Install it with: pip install pyodim")
+
+        if "nslice" in kwargs:  # pyodim < 0.7 name
+            warnings.warn("`nslice` is deprecated, use `sweeps`.", DeprecationWarning, stacklevel=2)
+            sweeps = kwargs.pop("nslice")
+        if kwargs.pop("lazy", False):
+            raise ValueError("Volume.read() reads from an in-memory buffer and is always eager; `lazy` is not supported.")
 
         # Read zip entry into memory
         with zipfile.ZipFile(self.zip_path, "r") as zf:
             with zf.open(self.filename) as f:
                 data = f.read()
 
-        # Open HDF5 from memory buffer — no temp file ever touches disk
-        buffer = io.BytesIO(data)
-
-        # Mirror exactly what pyodim.read_odim does, but with an
-        # already-open in-memory file handle instead of a path string.
-        # Crucially, read_odim_slice_h5 is called eagerly (no dask.delayed),
-        # so all data is in numpy arrays before this method returns.
-        kwargs_copy = kwargs.copy()
-        user_sweep = kwargs_copy.pop("nslice", None)
-
-        with h5py.File(buffer, "r") as hfile:
-            nsweep = len([k for k in hfile["/"].keys() if k.startswith("dataset")])
-
-            if user_sweep is not None:
-                if user_sweep < 0 or user_sweep >= nsweep:
-                    raise ValueError(f"sweep index {user_sweep} out of range (0-{nsweep-1})")
-                sweeps_to_read = [user_sweep]
-            else:
-                sweeps_to_read = list(range(nsweep))
-
-            # Eager read inside the `with` block so the file handle is still
-            # open when h5py reads the actual data arrays
-            result = [read_odim_slice_h5(hfile, s, **kwargs_copy) for s in sweeps_to_read]
-
-        return result
+        # h5py (and therefore pyodim) accepts a file-like object
+        return read_odim(io.BytesIO(data), sweeps=sweeps, **kwargs)
 
     def read_h5py(self) -> h5py.File:
         """
