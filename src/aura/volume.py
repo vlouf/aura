@@ -170,6 +170,36 @@ class LazyVolume:
         # This keeps everything in RAM without temp files
         return h5py.File(io.BytesIO(data), "r")
 
+    def plot(self, sweep: int = 0, moments: list[str] | None = None, **kwargs):
+        """
+        Plot radar moments of one sweep of the volume.
+
+        Only the requested sweep (and moments, if given) is read.
+
+        Parameters
+        ----------
+        sweep : int
+            Sweep index, in elevation order (default 0, the lowest).
+        moments : list of str, optional
+            Moments to plot. Defaults to the first AURA default moment set available.
+        **kwargs
+            Additional options passed to ``aura.plots.plot``, e.g. ``xlims``,
+            ``ylims``, ``nrings``, ``ncols``.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The figure, to display or save.
+        """
+        try:
+            from aura.plots import plot
+        except ImportError:
+            raise ImportError("matplotlib and cmweather are required for plotting. Install with: pip install aura[plot]")
+
+        read_kwargs = {"include_fields": list(moments)} if moments is not None else {}
+        radar = self.read(sweeps=sweep, **read_kwargs)
+        return plot(radar[0], moments=moments, **kwargs)
+
     def extract_to(self, directory: Path | str) -> Path:
         """
         Extract the volume file to a directory on disk.
